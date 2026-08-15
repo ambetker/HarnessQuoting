@@ -11,3 +11,11 @@ app_launch.log
 # Saved quote files (File > Save) land in the project root when launched
 # via the Desktop app — these are working data, not source.
 /*.json
+# Root-level PDFs: the design reference and anything saved via
+# Print quote > Save as PDF — working files, not source.
+/*.pdf
+
+# Design/context references used to build the app, kept locally but not
+# published — see project history if you need them back.
+harness-cost-app-notes.md
+design_handoff_harness_quoting/
