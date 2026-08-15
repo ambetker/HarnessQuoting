@@ -14,6 +14,8 @@ from app.models import Harness, LaborAssumptions, PartLine, Process, Quote
 def quote_to_dict(quote: Quote) -> dict:
     return {
         "customer": quote.customer,
+        "customer_attn": quote.customer_attn,
+        "customer_address": quote.customer_address,
         "labor": {
             "labor_rate": quote.labor.labor_rate,
             "efficiency": quote.labor.efficiency,
@@ -79,7 +81,13 @@ def quote_from_dict(data: dict) -> Quote:
         round_price_to=labor_data.get("round_price_to", 0.0),
     )
     harnesses = [_harness_from_dict(h) for h in data.get("harnesses", [])]
-    return Quote(customer=data.get("customer", ""), labor=labor, harnesses=harnesses)
+    return Quote(
+        customer=data.get("customer", ""),
+        labor=labor,
+        harnesses=harnesses,
+        customer_attn=data.get("customer_attn", ""),
+        customer_address=data.get("customer_address", ""),
+    )
 
 
 def _harness_from_dict(data: dict) -> Harness:

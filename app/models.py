@@ -76,3 +76,5 @@ class Quote:
     customer: str
     labor: LaborAssumptions
     harnesses: list[Harness] = field(default_factory=list)
+    customer_attn: str = ""
+    customer_address: str = ""  # multi-line, newline-separated; shown on the printed quote's bill-to block

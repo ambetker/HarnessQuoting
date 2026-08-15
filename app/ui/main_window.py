@@ -3,8 +3,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QThreadPool, QTimer, Qt
-from PySide6.QtGui import QKeySequence, QPainter
+from PySide6.QtCore import QMarginsF, QSizeF, QThreadPool, QTimer, Qt
+from PySide6.QtGui import QKeySequence, QPageLayout, QTextDocument
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -14,16 +14,18 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from app import cache, persistence, seed_data
+from app import cache, persistence, print_document, seed_data
 from app.cost_model import calc_harness, line_category, unit_for_category
 from app.digikey_client import select_price_break
 from app.models import Harness, PartLine, default_processes
+from app.ui.widgets.bill_to_dialog import BillToDialog
 from app.ui.widgets.cost_price_rail import CostPriceRailWidget
 from app.ui.widgets.digikey_panel import DigiKeyPanelWidget
 from app.ui.widgets.harness_header import HarnessHeaderWidget
@@ -141,6 +143,16 @@ class MainWindow(QMainWindow):
         self.customer_edit.editingFinished.connect(self._on_customer_changed)
         customer_box.addWidget(customer_label)
         customer_box.addWidget(self.customer_edit)
+
+        bill_to_btn = QPushButton("Bill-to details…")
+        bill_to_btn.setFlat(True)
+        bill_to_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        bill_to_btn.setStyleSheet(
+            "border: none; background: transparent; color: #a3a09a; "
+            "font-size: 11px; text-decoration: underline; padding: 0; text-align: left;"
+        )
+        bill_to_btn.clicked.connect(self.open_bill_to_dialog)
+        customer_box.addWidget(bill_to_btn)
         layout.addLayout(customer_box)
 
         total_box = QVBoxLayout()
@@ -496,17 +508,22 @@ class MainWindow(QMainWindow):
         name = self.current_file_path.name if self.current_file_path else "Untitled"
         self.setWindowTitle(f"Harness quote — {name}")
 
+    def open_bill_to_dialog(self):
+        dialog = BillToDialog(self.quote, self)
+        if dialog.exec() == BillToDialog.DialogCode.Accepted:
+            dialog.apply_to(self.quote)
+
     def print_quote(self):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setPageMargins(QMarginsF(36, 36, 36, 36), QPageLayout.Unit.Point)
         dialog = QPrintDialog(printer, self)
         if dialog.exec() != QPrintDialog.DialogCode.Accepted:
             return
-        painter = QPainter(printer)
-        pixmap = self.centralWidget().grab()
-        target = painter.viewport()
-        scaled = pixmap.scaled(target.size(), Qt.AspectRatioMode.KeepAspectRatio)
-        painter.drawPixmap(0, 0, scaled)
-        painter.end()
+
+        document = QTextDocument()
+        document.setHtml(print_document.build_quote_html(self.quote))
+        document.setPageSize(QSizeF(printer.pageRect(QPrinter.Unit.Point).size()))
+        document.print_(printer)
 
     # ------------------------------------------------------- DigiKey lookups
 

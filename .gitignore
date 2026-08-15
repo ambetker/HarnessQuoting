@@ -8,3 +8,6 @@ __pycache__/
 .claude/settings.local.json
 Wire Harness Quoting UI.zip
 app_launch.log
+# Saved quote files (File > Save) land in the project root when launched
+# via the Desktop app — these are working data, not source.
+/*.json
