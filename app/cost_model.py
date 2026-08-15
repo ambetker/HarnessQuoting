@@ -11,7 +11,9 @@ from app.models import Harness, LaborAssumptions, PartLine, Quote
 
 
 def line_unit_price(line: PartLine) -> float:
-    return line.catalog_price if (line.resolved and line.catalog_price is not None) else line.manual_cost
+    if line.resolved and line.catalog_price is not None and not line.manual_override:
+        return line.catalog_price
+    return line.manual_cost
 
 
 def line_category(line: PartLine) -> str:

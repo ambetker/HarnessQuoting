@@ -24,6 +24,12 @@ class QuoteSummaryWidget(Card):
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        # Column 0 is Stretch, so the rest need explicit widths — otherwise
+        # Qt's default ~100px-per-column for columns 1-6 ate all the space
+        # before the stretch column got a chance, collapsing "Harness" to
+        # a sliver.
+        for col, width in {1: 100, 2: 55, 3: 90, 4: 90, 5: 90, 6: 90}.items():
+            self.table.setColumnWidth(col, width)
         self.body.addWidget(self.table)
 
     def render(self, quote: Quote) -> None:

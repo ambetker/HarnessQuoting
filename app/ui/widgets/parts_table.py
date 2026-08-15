@@ -185,12 +185,25 @@ class PartsTableWidget(Card):
     def _description_color(self, line) -> str:
         return "#1a1917" if line.resolved else "#a09c94"
 
+    def _link_button(self, text: str) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setFlat(True)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setStyleSheet(
+            "border: none; background: transparent; color: #a3a09a; "
+            "font-size: 10px; text-decoration: underline; padding: 0;"
+        )
+        return btn
+
     def _price_cell(self, line, index: int) -> QWidget:
-        if line.resolved and line.catalog_price is not None:
-            box = QWidget()
-            layout = QVBoxLayout(box)
-            layout.setContentsMargins(4, 2, 4, 2)
-            layout.setSpacing(0)
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(4, 3, 4, 3)
+        layout.setSpacing(1)
+
+        has_catalog_price = line.resolved and line.catalog_price is not None
+
+        if has_catalog_price and not line.manual_override:
             price_label = QLabel(_money4(line.catalog_price))
             price_label.setAlignment(Qt.AlignmentFlag.AlignRight)
             layout.addWidget(price_label)
@@ -199,6 +212,10 @@ class PartsTableWidget(Card):
                 tier_label.setAlignment(Qt.AlignmentFlag.AlignRight)
                 tier_label.setStyleSheet("font-size: 11px; color: #a3a09a;")
                 layout.addWidget(tier_label)
+
+            override_btn = self._link_button("override")
+            override_btn.clicked.connect(lambda _checked=False, l=line: self._on_override_toggled(l, True))
+            layout.addWidget(override_btn, 0, Qt.AlignmentFlag.AlignRight)
             return box
 
         edit = QLineEdit(f"{line.manual_cost:g}" if line.manual_cost else "")
@@ -208,7 +225,15 @@ class PartsTableWidget(Card):
             "border: 1px dashed #ddc9a8; background: #fffdf9; border-radius: 6px; padding: 5px 7px;"
         )
         edit.editingFinished.connect(lambda idx=index: self._on_manual_cost_changed(idx))
-        return edit
+        layout.addWidget(edit)
+
+        if has_catalog_price:
+            # manual_override is True here — offer a way back to the catalog price.
+            revert_btn = self._link_button(f"use {_money4(line.catalog_price)}")
+            revert_btn.clicked.connect(lambda _checked=False, l=line: self._on_override_toggled(l, False))
+            layout.addWidget(revert_btn, 0, Qt.AlignmentFlag.AlignRight)
+
+        return box
 
     def _on_qty_changed(self, index: int) -> None:
         self.changed.emit()
@@ -217,6 +242,12 @@ class PartsTableWidget(Card):
         self.changed.emit()
 
     def _on_manual_cost_changed(self, index: int) -> None:
+        self.changed.emit()
+
+    def _on_override_toggled(self, line, override: bool) -> None:
+        line.manual_override = override
+        if override and line.catalog_price is not None:
+            line.manual_cost = line.catalog_price  # prefill so the estimator is correcting, not starting blank
         self.changed.emit()
 
     def read_line_edits(self, harness: Harness) -> None:
@@ -238,10 +269,11 @@ class PartsTableWidget(Card):
                 except ValueError:
                     line.qty = 0.0
 
-            price_widget = self.table.cellWidget(i, 7)
-            if isinstance(price_widget, QLineEdit):
+            price_container = self.table.cellWidget(i, 7)
+            price_edit = price_container.findChild(QLineEdit) if price_container else None
+            if price_edit is not None:
                 try:
-                    line.manual_cost = float(price_widget.text())
+                    line.manual_cost = float(price_edit.text())
                 except ValueError:
                     line.manual_cost = 0.0
 

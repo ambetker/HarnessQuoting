@@ -39,6 +39,7 @@ class PartLine:
     source: str = "Mfr"  # "DK" or "Mfr", mirrors digikey_client.ResolvedPart.source
     price_tier_label: str = ""
     lookup_attempted: bool = False  # True once a lookup has run, whether or not it found a match
+    manual_override: bool = False  # user has overridden a resolved line's catalog price
 
 
 @dataclass

@@ -6,7 +6,7 @@ asserted against the exact numbers shown in the design screenshots
 
 import pytest
 
-from app.cost_model import cost_mix_pct, price_harness, price_quote
+from app.cost_model import cost_mix_pct, line_unit_price, price_harness, price_quote
 from app.models import Harness, LaborAssumptions, PartLine, Process, Quote
 
 LABOR = LaborAssumptions(
@@ -125,6 +125,21 @@ def test_quote_totals_match_design_summary(main_engine_harness, sensor_jumper_ha
     assert totals.quote_labor == pytest.approx(546.03, abs=0.01)
     assert totals.quote_other == pytest.approx(724.75, abs=0.01)
     assert totals.build_hours == pytest.approx(8.8, abs=0.05)
+
+
+def test_manual_override_takes_precedence_over_catalog_price():
+    # Regression guard: a resolved line priced from a roll/spool listing
+    # (e.g. CLT50N-C630, priced per 100' roll rather than per foot) can be
+    # wildly wrong; the estimator needs to be able to override it.
+    line = PartLine(
+        part_number="CLT50N-C630", qty=6.5, category="Loom / braid",
+        resolved=True, catalog_price=96.965, manual_override=False,
+    )
+    assert line_unit_price(line) == pytest.approx(96.965)
+
+    line.manual_override = True
+    line.manual_cost = 0.28
+    assert line_unit_price(line) == pytest.approx(0.28)
 
 
 def test_efficiency_floor_applies_below_0_2():
