@@ -1,22 +1,26 @@
 import copy
+import json
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import QThreadPool, QTimer, Qt
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QKeySequence, QPainter
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
     QScrollArea,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from app import cache, seed_data
+from app import cache, persistence, seed_data
 from app.cost_model import calc_harness, line_category, unit_for_category
 from app.digikey_client import select_price_break
 from app.models import Harness, PartLine, default_processes
@@ -59,13 +63,37 @@ class MainWindow(QMainWindow):
         self.last_lookup_time: datetime | None = None
         self.thread_pool = QThreadPool.globalInstance()
         self._active_workers: list[Worker] = []  # keep alive; QRunnable has no Python owner otherwise
+        self.current_file_path: Path | None = None
 
+        self._build_menu_bar()
         self._build_ui()
+        self._update_window_title()
         self.refresh_ui()
 
         QTimer.singleShot(0, self.start_price_all)
 
     # ---------------------------------------------------------------- UI
+
+    def _build_menu_bar(self):
+        file_menu = self.menuBar().addMenu("&File")
+
+        new_action = file_menu.addAction("New Quote")
+        new_action.setShortcut(QKeySequence.StandardKey.New)
+        new_action.triggered.connect(self.new_quote)
+
+        open_action = file_menu.addAction("Open…")
+        open_action.setShortcut(QKeySequence.StandardKey.Open)
+        open_action.triggered.connect(self.open_quote)
+
+        file_menu.addSeparator()
+
+        save_action = file_menu.addAction("Save")
+        save_action.setShortcut(QKeySequence.StandardKey.Save)
+        save_action.triggered.connect(self.save_quote)
+
+        save_as_action = file_menu.addAction("Save As…")
+        save_as_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        save_as_action.triggered.connect(self.save_quote_as)
 
     def _build_ui(self):
         central = QWidget()
@@ -407,6 +435,66 @@ class MainWindow(QMainWindow):
         self.last_lookup_time = None
         self.refresh_ui()
         QTimer.singleShot(0, self.start_price_all)
+
+    # ------------------------------------------------------------- File menu
+
+    def new_quote(self):
+        self.quote = seed_data.make_empty_quote()
+        self.active = 0
+        self.pending = {}
+        self.last_lookup_time = None
+        self.current_file_path = None
+        self._update_window_title()
+        self.refresh_ui()
+
+    def open_quote(self):
+        path_str, _ = QFileDialog.getOpenFileName(self, "Open Quote", "", "Harness Quote Files (*.json)")
+        if not path_str:
+            return
+        path = Path(path_str)
+        try:
+            quote = persistence.load_quote(path)
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            QMessageBox.critical(self, "Open Quote Failed", f"Couldn't open {path.name}:\n{exc}")
+            return
+
+        self.quote = quote
+        self.active = 0
+        self.pending = {}
+        self.last_lookup_time = None
+        self.current_file_path = path
+        self._update_window_title()
+        self.refresh_ui()
+
+    def save_quote(self):
+        if self.current_file_path is None:
+            self.save_quote_as()
+            return
+        self._write_quote_to(self.current_file_path)
+
+    def save_quote_as(self):
+        default_name = f"{self.quote.customer or 'quote'}.json"
+        path_str, _ = QFileDialog.getSaveFileName(self, "Save Quote As", default_name, "Harness Quote Files (*.json)")
+        if not path_str:
+            return
+        path = Path(path_str)
+        if path.suffix.lower() != ".json":
+            path = path.with_suffix(".json")
+        self._write_quote_to(path)
+
+    def _write_quote_to(self, path: Path):
+        try:
+            persistence.save_quote(self.quote, path)
+        except OSError as exc:
+            QMessageBox.critical(self, "Save Failed", f"Couldn't save to {path.name}:\n{exc}")
+            return
+        self.current_file_path = path
+        self._update_window_title()
+        self.statusBar().showMessage(f"Saved to {path.name}", 3000)
+
+    def _update_window_title(self):
+        name = self.current_file_path.name if self.current_file_path else "Untitled"
+        self.setWindowTitle(f"Harness quote — {name}")
 
     def print_quote(self):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)

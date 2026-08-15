@@ -2,7 +2,7 @@
 harnesses from the design prototype (same real manufacturer part numbers,
 which resolve against the live DigiKey API)."""
 
-from app.models import Harness, LaborAssumptions, PartLine, Process, Quote
+from app.models import Harness, LaborAssumptions, PartLine, Process, Quote, default_processes
 
 DEFAULT_TIMES = {"cut": 25, "crimp": 12, "conn": 45, "shrink": 20, "label": 15, "insp": 120}
 
@@ -66,3 +66,25 @@ def make_default_quote() -> Quote:
     )
 
     return Quote(customer="Northwind Controls", labor=labor, harnesses=[main_engine, sensor_jumper])
+
+
+def make_empty_quote() -> Quote:
+    """A genuinely blank starting point for File > New Quote — distinct
+    from Reset, which restores the design's fictional sample harnesses."""
+    labor = LaborAssumptions(
+        labor_rate=62.00,
+        efficiency=1.00,
+        scrap_pct=2.5,
+        margin_pct=32,
+        times=dict(DEFAULT_TIMES),
+    )
+    blank_harness = Harness(
+        name="Harness 1",
+        part_no="",
+        order_qty=25,
+        setup=250,
+        freight=1.00,
+        lines=[PartLine(part_number="", qty=1, category="Other")],
+        processes=default_processes(),
+    )
+    return Quote(customer="", labor=labor, harnesses=[blank_harness])
