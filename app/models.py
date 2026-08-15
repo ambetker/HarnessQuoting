@@ -1,5 +1,30 @@
 from dataclasses import dataclass, field
 
+# (id, name) in the fixed display order used throughout the UI.
+PROCESS_DEFS: list[tuple[str, str]] = [
+    ("cut", "Cut and strip"),
+    ("crimp", "Crimp"),
+    ("conn", "Install connector"),
+    ("shrink", "Heat shrink"),
+    ("label", "Labeling"),
+    ("insp", "Inspection"),
+]
+
+CATEGORIES = [
+    "Wire",
+    "Connector",
+    "Terminal",
+    "Seal / plug",
+    "Loom / braid",
+    "Label / shrink",
+    "Splice",
+    "Other",
+]
+
+
+def default_processes() -> list["Process"]:
+    return [Process(id=pid, name=name, on=True, count=0) for pid, name in PROCESS_DEFS]
+
 
 @dataclass
 class PartLine:
@@ -10,6 +35,10 @@ class PartLine:
     resolved: bool = False
     catalog_price: float | None = None
     catalog_category: str | None = None
+    description: str = ""
+    source: str = "Mfr"  # "DK" or "Mfr", mirrors digikey_client.ResolvedPart.source
+    price_tier_label: str = ""
+    lookup_attempted: bool = False  # True once a lookup has run, whether or not it found a match
 
 
 @dataclass

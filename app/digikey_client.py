@@ -194,8 +194,11 @@ def resolve_part(part_number: str) -> ResolvedPart | None:
         if digikey_pn and digikey_pn.strip().upper() == normalized:
             return _to_resolved_part(product, source="DK")
 
-    # No exact match; best-effort fall back to the top search result.
-    return _to_resolved_part(products[0], source="Mfr")
+    # Keyword search can return plausible-looking but wrong products (e.g. a
+    # different length/variant of the same base part number) when there's no
+    # exact match. Silently pricing a quote off the wrong product is worse
+    # than "not found", so we don't fall back to a fuzzy top result here.
+    return None
 
 
 def select_price_break(

@@ -144,3 +144,13 @@ def test_resolve_part_returns_none_when_no_products(mock_search):
     mock_search.return_value = {"Products": []}
 
     assert dk.resolve_part("NOTHING-MATCHES") is None
+
+
+@patch("app.digikey_client.keyword_search")
+def test_resolve_part_does_not_fuzzy_fallback_to_top_result(mock_search):
+    # Regression guard: keyword search can return a plausible but wrong
+    # product (e.g. CLT50N-C630, a different variant, for a CLT50N-C query).
+    # Silently pricing off a mismatched product is worse than "not found".
+    mock_search.return_value = SAMPLE_SEARCH_RESPONSE  # only has DT04-12PA-L012
+
+    assert dk.resolve_part("SOME-OTHER-PART-NOT-IN-RESULTS") is None

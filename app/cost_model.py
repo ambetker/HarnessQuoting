@@ -18,6 +18,10 @@ def line_category(line: PartLine) -> str:
     return line.catalog_category if (line.resolved and line.catalog_category) else line.category
 
 
+def unit_for_category(category: str) -> str:
+    return "ft" if category in ("Wire", "Loom / braid") else "ea"
+
+
 def _round_half_up(value: float) -> int:
     """Matches JS Math.round (half rounds toward +Infinity), unlike
     Python's round() which rounds half to even."""
