@@ -4,7 +4,7 @@ A desktop app for quoting wire harness manufacturing jobs. Enter part numbers an
 
 ## Requirements
 
-- macOS (the double-click launcher below is macOS-specific; the app itself, being PySide6, runs on Windows/Linux too via `python main.py`)
+- macOS or Windows (PySide6 also runs on Linux, but the double-click launcher scripts below only cover macOS and Windows)
 - Python 3.11+
 - A DigiKey developer account (free) for API access
 
@@ -19,11 +19,20 @@ cd HarnessQuoting
 
 **2. Create a virtual environment and install dependencies**
 
+macOS/Linux (bash/zsh):
 ```
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+Windows (PowerShell):
+```
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+If `Activate.ps1` is blocked by execution policy, either run PowerShell as administrator once with `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or activate via `.venv\Scripts\activate.bat` in Command Prompt instead.
 
 **3. Get DigiKey API credentials**
 
@@ -46,13 +55,21 @@ Edit `.env` and fill in `DIGIKEY_CLIENT_ID` and `DIGIKEY_CLIENT_SECRET`. `CACHE_
 python main.py
 ```
 
-## Optional: a double-clickable app icon (macOS)
+## Optional: a double-clickable launcher
 
+**macOS**
 ```
 ./scripts/make_desktop_launcher.sh
 ```
+Creates **Harness Quote.app** on your Desktop, wired to this project's venv — launch it from Finder, Spotlight, or Launchpad instead of the terminal.
 
-This creates **Harness Quote.app** on your Desktop, wired to this project's venv — launch it from Finder, Spotlight, or Launchpad instead of the terminal. Re-run the script if you move the project folder.
+**Windows**
+```
+powershell -ExecutionPolicy Bypass -File scripts\make_desktop_shortcut.ps1
+```
+Creates a **Harness Quote** shortcut on your Desktop, wired to this project's venv — double-click it (or find it via the Start menu search) instead of using the terminal.
+
+Re-run the relevant script if you move the project folder — both bake in an absolute path at creation time.
 
 ## Using the app
 
@@ -81,5 +98,8 @@ app/
   print_document.py      Builds the printable quote document
   ui/                    PySide6 widgets and main window
 tests/                  pytest suite
-scripts/                 make_desktop_launcher.sh
+scripts/
+  make_desktop_launcher.sh      macOS Desktop launcher (.app bundle)
+  launch_windows.bat             Windows launcher, run directly or via the shortcut script
+  make_desktop_shortcut.ps1      Windows Desktop shortcut generator
 ```
