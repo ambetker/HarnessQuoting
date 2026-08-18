@@ -22,17 +22,18 @@ from PySide6.QtWidgets import (
 )
 
 from app import cache, company_profiles, persistence, print_document, quote_numbering, seed_data, settings
-from app.cost_model import calc_harness, line_category, unit_for_category
+from app.cost_model import calc_harness, has_unpriced_lines, line_category, unit_for_category
 from app.digikey_client import select_price_break
 from app.models import Harness, PartLine, Quote, default_processes
 from app.ui.widgets.cost_price_rail import CostPriceRailWidget
 from app.ui.widgets.digikey_panel import DigiKeyPanelWidget
 from app.ui.widgets.harness_header import HarnessHeaderWidget
-from app.ui.widgets.harness_tabs import HarnessTabsWidget
+from app.ui.widgets.harness_nav import HarnessNavWidget
 from app.ui.widgets.labor_assumptions import LaborAssumptionsWidget
 from app.ui.widgets.money_breakdown import MoneyBreakdownWidget
 from app.ui.widgets.parts_table import PartsTableWidget
 from app.ui.widgets.paste_bom_dialog import PasteBomDialog
+from app.ui.widgets.paste_harnesses_dialog import PasteHarnessesDialog
 from app.ui.widgets.processes_table import ProcessesTableWidget
 from app.ui.widgets.quantity_breaks import QuantityBreaksWidget
 from app.ui.widgets.quote_details_dialog import QuoteDetailsDialog
@@ -206,11 +207,12 @@ class MainWindow(QMainWindow):
         layout.setSpacing(16)
         container.setMinimumWidth(620)
 
-        self.harness_tabs = HarnessTabsWidget()
-        self.harness_tabs.harness_selected.connect(self.select_harness)
-        self.harness_tabs.summary_selected.connect(self.select_summary)
-        self.harness_tabs.add_harness_requested.connect(self.add_harness)
-        layout.addWidget(self.harness_tabs)
+        self.harness_nav = HarnessNavWidget()
+        self.harness_nav.harness_selected.connect(self.select_harness)
+        self.harness_nav.summary_selected.connect(self.select_summary)
+        self.harness_nav.add_harness_requested.connect(self.add_harness)
+        self.harness_nav.paste_harnesses_requested.connect(self.open_paste_harnesses_dialog)
+        layout.addWidget(self.harness_nav)
 
         self.middle_stack = QStackedWidget()
         layout.addWidget(self.middle_stack, 1)
@@ -307,17 +309,15 @@ class MainWindow(QMainWindow):
 
         self.labor_widget.load(self.quote.labor)
 
-        tab_labels = [
-            (h.name, f"×{max(1, round(h.order_qty))}") for h in self.quote.harnesses
+        harness_entries = [
+            (h.name, f"×{max(1, round(h.order_qty))}", has_unpriced_lines(h)) for h in self.quote.harnesses
         ]
-        from app.cost_model import price_quote
 
-        totals = price_quote(self.quote)
         self.quote_total.render(self.quote)
         self.header_total_value.setText(self.quote_total.price_value.text())
 
         summary_sub = self.quote_total.price_value.text()
-        self.harness_tabs.rebuild(tab_labels, summary_sub, self.active)
+        self.harness_nav.rebuild(harness_entries, summary_sub, self.active)
 
         if self.is_summary_active():
             self.middle_stack.setCurrentIndex(1)
@@ -559,6 +559,34 @@ class MainWindow(QMainWindow):
         ]
         self.refresh_ui()
         self._launch_lookups(self.active_harness_index(), list(range(len(harness.lines))))
+
+    def open_paste_harnesses_dialog(self):
+        dialog = PasteHarnessesDialog(self)
+        if dialog.exec() != PasteHarnessesDialog.DialogCode.Accepted:
+            return
+
+        first_new_index = len(self.quote.harnesses)
+        for group in dialog.parsed_groups:
+            harness = Harness(
+                name=group.name,
+                part_no=group.part_no,
+                order_qty=group.qty,
+                setup=250,
+                freight=1.00,
+                lines=[
+                    PartLine(part_number=line.part_number, qty=line.qty, category="Other")
+                    for line in group.lines
+                ],
+                processes=default_processes(),
+            )
+            self.quote.harnesses.append(harness)
+
+        self.active = first_new_index
+        self.refresh_ui()
+
+        for hi in range(first_new_index, len(self.quote.harnesses)):
+            harness = self.quote.harnesses[hi]
+            self._launch_lookups(hi, list(range(len(harness.lines))))
 
     def print_quote(self):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)

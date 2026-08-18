@@ -24,6 +24,13 @@ def unit_for_category(category: str) -> str:
     return "ft" if category in ("Wire", "Loom / braid") else "ea"
 
 
+def has_unpriced_lines(harness: Harness) -> bool:
+    """True if any line was looked up but came back with no catalog price
+    (and isn't manually overridden) — the same condition the cost/price
+    rail's "N parts had no price returned" alert is keyed off."""
+    return any(line.lookup_attempted and not line.resolved for line in harness.lines)
+
+
 def _round_half_up(value: float) -> int:
     """Matches JS Math.round (half rounds toward +Infinity), unlike
     Python's round() which rounds half to even."""

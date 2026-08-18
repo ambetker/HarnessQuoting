@@ -6,7 +6,7 @@ asserted against the exact numbers shown in the design screenshots
 
 import pytest
 
-from app.cost_model import cost_mix_pct, line_unit_price, price_harness, price_quote
+from app.cost_model import cost_mix_pct, has_unpriced_lines, line_unit_price, price_harness, price_quote
 from app.models import Harness, LaborAssumptions, PartLine, Process, Quote
 
 LABOR = LaborAssumptions(
@@ -189,3 +189,29 @@ def test_round_price_to_applies_when_configured():
     pricing = price_harness(harness, labor)
     # cost=10.10, price = 10.10/0.5 = 20.20 -> rounds up to nearest $1 -> 21.00
     assert pricing.unit_price == pytest.approx(21.00, abs=0.001)
+
+
+def test_has_unpriced_lines_true_when_a_lookup_failed_to_resolve():
+    harness = Harness(
+        name="H", part_no="", order_qty=1, setup=0, freight=0,
+        lines=[PartLine(part_number="X", qty=1, category="Other", lookup_attempted=True, resolved=False)],
+        processes=[],
+    )
+    assert has_unpriced_lines(harness) is True
+
+
+def test_has_unpriced_lines_false_when_all_resolved_or_not_yet_looked_up():
+    harness = Harness(
+        name="H", part_no="", order_qty=1, setup=0, freight=0,
+        lines=[
+            PartLine(part_number="X", qty=1, category="Other", lookup_attempted=True, resolved=True, catalog_price=1.0),
+            PartLine(part_number="Y", qty=1, category="Other", lookup_attempted=False, resolved=False),
+        ],
+        processes=[],
+    )
+    assert has_unpriced_lines(harness) is False
+
+
+def test_has_unpriced_lines_false_for_empty_lines():
+    harness = Harness(name="H", part_no="", order_qty=1, setup=0, freight=0, lines=[], processes=[])
+    assert has_unpriced_lines(harness) is False
