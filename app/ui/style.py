@@ -174,6 +174,11 @@ QPushButton[variant="secondary"] {{
     font-size: 13px;
 }}
 QPushButton[variant="secondary"]:hover {{ border: 1px solid {COLORS['accent']}; color: {COLORS['accent']}; }}
+QPushButton[variant="secondary"]:disabled {{
+    background: {COLORS['zebra_1']};
+    color: {COLORS['text_disabled_3']};
+    border: 1px solid {COLORS['border_row']};
+}}
 
 QPushButton[variant="destructive"] {{
     background: {COLORS['surface']};

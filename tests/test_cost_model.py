@@ -6,7 +6,16 @@ asserted against the exact numbers shown in the design screenshots
 
 import pytest
 
-from app.cost_model import cost_mix_pct, has_unpriced_lines, line_unit_price, price_harness, price_quote
+from app.cost_model import (
+    cost_mix_pct,
+    harness_flag_status,
+    has_manual_cost_lines,
+    has_missing_cost_lines,
+    has_unpriced_lines,
+    line_unit_price,
+    price_harness,
+    price_quote,
+)
 from app.models import Harness, LaborAssumptions, PartLine, Process, Quote
 
 LABOR = LaborAssumptions(
@@ -215,3 +224,69 @@ def test_has_unpriced_lines_false_when_all_resolved_or_not_yet_looked_up():
 def test_has_unpriced_lines_false_for_empty_lines():
     harness = Harness(name="H", part_no="", order_qty=1, setup=0, freight=0, lines=[], processes=[])
     assert has_unpriced_lines(harness) is False
+
+
+def _harness_with_lines(*lines) -> Harness:
+    return Harness(name="H", part_no="", order_qty=1, setup=0, freight=0, lines=list(lines), processes=[])
+
+
+def test_missing_cost_when_unresolved_and_no_manual_cost_entered():
+    harness = _harness_with_lines(
+        PartLine(part_number="X", qty=1, category="Other", lookup_attempted=True, resolved=False)
+    )
+    assert has_missing_cost_lines(harness) is True
+    assert has_manual_cost_lines(harness) is False
+    assert harness_flag_status(harness) == "missing"
+
+
+def test_not_missing_once_a_manual_cost_is_entered_even_if_never_resolved():
+    # This was the actual gap: has_unpriced_lines kept flagging a line
+    # forever once DigiKey failed, even after the user typed a cost in.
+    harness = _harness_with_lines(
+        PartLine(part_number="X", qty=1, category="Other", lookup_attempted=True, resolved=False, manual_cost=0.28)
+    )
+    assert has_missing_cost_lines(harness) is False
+    assert has_manual_cost_lines(harness) is True
+    assert harness_flag_status(harness) == "manual"
+
+
+def test_manual_status_when_all_priced_but_one_line_is_manual():
+    harness = _harness_with_lines(
+        PartLine(part_number="X", qty=1, category="Other", resolved=True, catalog_price=1.0),
+        PartLine(part_number="Y", qty=1, category="Other", lookup_attempted=True, resolved=False, manual_cost=0.5),
+    )
+    assert has_missing_cost_lines(harness) is False
+    assert has_manual_cost_lines(harness) is True
+    assert harness_flag_status(harness) == "manual"
+
+
+def test_manual_status_when_a_resolved_line_is_overridden():
+    harness = _harness_with_lines(
+        PartLine(
+            part_number="X", qty=1, category="Other", resolved=True, catalog_price=96.965,
+            manual_override=True, manual_cost=0.28,
+        )
+    )
+    assert has_missing_cost_lines(harness) is False
+    assert has_manual_cost_lines(harness) is True
+    assert harness_flag_status(harness) == "manual"
+
+
+def test_no_flag_when_fully_resolved_from_catalog():
+    harness = _harness_with_lines(
+        PartLine(part_number="X", qty=1, category="Other", resolved=True, catalog_price=1.0),
+        PartLine(part_number="Y", qty=1, category="Other", resolved=True, catalog_price=2.0),
+    )
+    assert has_missing_cost_lines(harness) is False
+    assert has_manual_cost_lines(harness) is False
+    assert harness_flag_status(harness) is None
+
+
+def test_missing_takes_precedence_over_manual():
+    harness = _harness_with_lines(
+        PartLine(part_number="X", qty=1, category="Other", lookup_attempted=True, resolved=False, manual_cost=0.5),
+        PartLine(part_number="Y", qty=1, category="Other", lookup_attempted=True, resolved=False),  # no cost at all
+    )
+    assert has_missing_cost_lines(harness) is True
+    assert has_manual_cost_lines(harness) is True
+    assert harness_flag_status(harness) == "missing"

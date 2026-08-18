@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from app import cache, company_profiles, persistence, print_document, quote_numbering, seed_data, settings
-from app.cost_model import calc_harness, has_unpriced_lines, line_category, unit_for_category
+from app.cost_model import calc_harness, harness_flag_status, line_category, unit_for_category
 from app.digikey_client import select_price_break
 from app.models import Harness, PartLine, Quote, default_processes
 from app.ui.widgets.cost_price_rail import CostPriceRailWidget
@@ -314,7 +314,7 @@ class MainWindow(QMainWindow):
         self.labor_widget.load(self.quote.labor)
 
         harness_entries = [
-            (h.name, f"×{max(1, round(h.order_qty))}", has_unpriced_lines(h)) for h in self.quote.harnesses
+            (h.name, f"×{max(1, round(h.order_qty))}", harness_flag_status(h)) for h in self.quote.harnesses
         ]
 
         self.quote_total.render(self.quote)

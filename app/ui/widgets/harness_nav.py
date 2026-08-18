@@ -14,7 +14,14 @@ class HarnessNavWidget(QWidget):
     add_harness_requested = Signal()
     paste_harnesses_requested = Signal()
 
-    FLAG_COLOR = "#a8443b"
+    # Keyed by app.cost_model.harness_flag_status()'s return value.
+    # "missing" (a line with no cost at all) takes precedence over
+    # "manual" (every line has a cost, but at least one isn't from the
+    # catalog) when a harness matches both.
+    FLAG_STYLES = {
+        "missing": ("⚠ ", "#a8443b"),
+        "manual": ("✎ ", "#b45309"),
+    }
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -72,16 +79,17 @@ class HarnessNavWidget(QWidget):
 
         self._suppress_combo_signal = False
 
-    def rebuild(self, harness_entries: list[tuple[str, str, bool]], summary_sub: str, active) -> None:
-        """harness_entries: list of (name, sub_label e.g. '×25', flagged)
-        per harness, in order. active is an int index, or 'sum'."""
+    def rebuild(self, harness_entries: list[tuple[str, str, str | None]], summary_sub: str, active) -> None:
+        """harness_entries: list of (name, sub_label e.g. '×25', flag
+        status — 'missing' / 'manual' / None) per harness, in order.
+        active is an int index, or 'sum'."""
         self._suppress_combo_signal = True
         self._model.clear()
-        for name, sub, flagged in harness_entries:
-            prefix = "⚠ " if flagged else ""
+        for name, sub, status in harness_entries:
+            prefix, color = self.FLAG_STYLES.get(status, ("", None))
             item = QStandardItem(f"{prefix}{name}   {sub}")
-            if flagged:
-                item.setForeground(QColor(self.FLAG_COLOR))
+            if color:
+                item.setForeground(QColor(color))
             self._model.appendRow(item)
 
         n = len(harness_entries)
@@ -93,11 +101,12 @@ class HarnessNavWidget(QWidget):
 
         # QComboBox only applies a model item's custom color to the open
         # dropdown list, not the closed/current-selection display — without
-        # this, a flagged harness's warning color disappears the moment
+        # this, a flagged harness's status color disappears the moment
         # it's actually selected, which is backwards (that's exactly when
         # you'd want the reminder still visible).
-        current_flagged = 0 <= current_index < n and harness_entries[current_index][2]
-        self.harness_combo.setStyleSheet(f"QComboBox {{ color: {self.FLAG_COLOR}; }}" if current_flagged else "")
+        current_status = harness_entries[current_index][2] if 0 <= current_index < n else None
+        _, current_color = self.FLAG_STYLES.get(current_status, ("", None))
+        self.harness_combo.setStyleSheet(f"QComboBox {{ color: {current_color}; }}" if current_color else "")
 
         is_summary = active == "sum"
         self.summary_btn.setProperty("variant", "pill-active" if is_summary else "pill")

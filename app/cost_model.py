@@ -31,6 +31,36 @@ def has_unpriced_lines(harness: Harness) -> bool:
     return any(line.lookup_attempted and not line.resolved for line in harness.lines)
 
 
+def has_missing_cost_lines(harness: Harness) -> bool:
+    """True if any line has no price at all in its cost box — neither a
+    resolved catalog price nor a manually-entered one. Unlike
+    has_unpriced_lines, this counts a line as fine once *any* cost has
+    been entered for it, manual or not."""
+    return any(line_unit_price(line) == 0 for line in harness.lines)
+
+
+def has_manual_cost_lines(harness: Harness) -> bool:
+    """True if any line's price comes from a manual entry rather than a
+    resolved catalog price (never resolved, or resolved but overridden)
+    — and that line does have a cost (see has_missing_cost_lines for the
+    "no cost at all" case, which takes precedence over this one)."""
+    return any(
+        (not line.resolved or line.manual_override) and line_unit_price(line) != 0
+        for line in harness.lines
+    )
+
+
+def harness_flag_status(harness: Harness) -> str | None:
+    """'missing' if any line has no cost entered at all (most severe —
+    takes precedence), 'manual' if every line has a cost but at least one
+    came from manual entry rather than the catalog, otherwise None."""
+    if has_missing_cost_lines(harness):
+        return "missing"
+    if has_manual_cost_lines(harness):
+        return "manual"
+    return None
+
+
 def _round_half_up(value: float) -> int:
     """Matches JS Math.round (half rounds toward +Infinity), unlike
     Python's round() which rounds half to even."""
