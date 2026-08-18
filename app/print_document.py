@@ -36,7 +36,7 @@ def build_quote_html(quote: Quote) -> str:
     rows = [(h, price_harness(h, quote.labor)) for h in quote.harnesses]
     totals = price_quote(quote)
 
-    address_lines = "<br/>".join(_esc(line) for line in config.COMPANY_ADDRESS_LINES)
+    address_lines = "<br/>".join(_esc(line) for line in quote.company_address_lines)
 
     bill_to_lines = []
     if quote.customer_attn.strip():
@@ -67,10 +67,10 @@ def build_quote_html(quote: Quote) -> str:
                                                  padding-bottom: 14px;">
         <tr>
             <td style="vertical-align: top;">
-                <div style="font-size: 19pt; font-weight: bold;">{_esc(config.COMPANY_NAME)}</div>
+                <div style="font-size: 19pt; font-weight: bold;">{_esc(quote.company_name)}</div>
                 <div style="color:{_TOKENS['muted']}; font-size: 9pt; margin-top: 8px; line-height: 1.5;">
                     {address_lines}<br/>
-                    {_esc(config.COMPANY_PHONE)} &middot; {_esc(config.COMPANY_EMAIL)}
+                    {_esc(quote.company_phone)} &middot; {_esc(quote.company_email)}
                 </div>
             </td>
             <td style="vertical-align: top; text-align: right;">
@@ -78,7 +78,7 @@ def build_quote_html(quote: Quote) -> str:
                 <table style="margin-left: auto; margin-top: 10px;" cellspacing="0">
                     <tr>
                         <td style="color:{_TOKENS['muted']}; text-align:right; padding-right:10px;">Quote no.</td>
-                        <td style="font-weight:bold; text-align:right;">{_esc(config.QUOTE_NUMBER)}</td>
+                        <td style="font-weight:bold; text-align:right;">{_esc(quote.quote_number) or '—'}</td>
                     </tr>
                     <tr>
                         <td style="color:{_TOKENS['muted']}; text-align:right; padding-right:10px;">Revision</td>
@@ -124,10 +124,10 @@ def build_quote_html(quote: Quote) -> str:
     <table width="100%" style="margin-top: 90px; border-top: 1px solid {_TOKENS['rule']}; padding-top: 14px;">
         <tr>
             <td style="width: 74%; vertical-align: top; font-size: 8pt; color:{_TOKENS['muted']}; line-height: 1.5;">
-                <b>Terms.</b> {_esc(config.QUOTE_TERMS)}
+                <b>Terms.</b> {_esc(config.quote_terms(quote.company_name))}
             </td>
             <td style="vertical-align: top; text-align: right; font-size: 9pt;">
-                <b>{_esc(config.QUOTE_NUMBER)}</b><br/>Rev {_esc(config.QUOTE_REVISION)}
+                <b>{_esc(quote.quote_number) or '—'}</b><br/>Rev {_esc(config.QUOTE_REVISION)}
             </td>
         </tr>
     </table>

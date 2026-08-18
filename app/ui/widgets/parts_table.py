@@ -25,18 +25,23 @@ class PartsTableWidget(Card):
     changed = Signal()
     lookup_requested = Signal(int)  # line index
     lookup_bom_requested = Signal()
+    paste_bom_requested = Signal()
     add_line_requested = Signal()
     remove_line_requested = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__("Parts", "Manufacturer or DigiKey P/N + qty per harness", parent)
 
+        paste_btn = QPushButton("Paste BOM")
+        paste_btn.setProperty("variant", "secondary")
+        paste_btn.clicked.connect(self.paste_bom_requested.emit)
         lookup_btn = QPushButton("Look up this BOM")
         lookup_btn.setProperty("variant", "secondary")
         lookup_btn.clicked.connect(self.lookup_bom_requested.emit)
         add_btn = QPushButton("Add part")
         add_btn.setProperty("variant", "secondary")
         add_btn.clicked.connect(self.add_line_requested.emit)
+        self.add_header_button(paste_btn)
         self.add_header_button(lookup_btn)
         self.add_header_button(add_btn)
 

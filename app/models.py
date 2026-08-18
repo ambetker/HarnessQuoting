@@ -78,3 +78,10 @@ class Quote:
     harnesses: list[Harness] = field(default_factory=list)
     customer_attn: str = ""
     customer_address: str = ""  # multi-line, newline-separated; shown on the printed quote's bill-to block
+    quote_number: str = ""  # assigned once at creation (app.quote_numbering), fixed thereafter
+    # "From" letterhead — a snapshot copied from a company_profiles.CompanyProfile
+    # at creation time, not a live reference (see app/company_profiles.py).
+    company_name: str = ""
+    company_address_lines: list[str] = field(default_factory=list)
+    company_phone: str = ""
+    company_email: str = ""

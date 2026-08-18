@@ -21,11 +21,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import cache, persistence, print_document, seed_data
+from app import cache, company_profiles, persistence, print_document, quote_numbering, seed_data, settings
 from app.cost_model import calc_harness, line_category, unit_for_category
 from app.digikey_client import select_price_break
-from app.models import Harness, PartLine, default_processes
-from app.ui.widgets.bill_to_dialog import BillToDialog
+from app.models import Harness, PartLine, Quote, default_processes
 from app.ui.widgets.cost_price_rail import CostPriceRailWidget
 from app.ui.widgets.digikey_panel import DigiKeyPanelWidget
 from app.ui.widgets.harness_header import HarnessHeaderWidget
@@ -33,10 +32,13 @@ from app.ui.widgets.harness_tabs import HarnessTabsWidget
 from app.ui.widgets.labor_assumptions import LaborAssumptionsWidget
 from app.ui.widgets.money_breakdown import MoneyBreakdownWidget
 from app.ui.widgets.parts_table import PartsTableWidget
+from app.ui.widgets.paste_bom_dialog import PasteBomDialog
 from app.ui.widgets.processes_table import ProcessesTableWidget
 from app.ui.widgets.quantity_breaks import QuantityBreaksWidget
+from app.ui.widgets.quote_details_dialog import QuoteDetailsDialog
 from app.ui.widgets.quote_summary import QuoteSummaryWidget
 from app.ui.widgets.quote_total import QuoteTotalWidget
+from app.ui.widgets.settings_dialog import SettingsDialog
 from app.ui.worker import Worker
 
 LEFT_WIDTH = 300
@@ -53,6 +55,17 @@ def _scrollable(widget: QWidget, fixed_width: int | None = None) -> QScrollArea:
     return area
 
 
+def _link_button(text: str) -> QPushButton:
+    btn = QPushButton(text)
+    btn.setFlat(True)
+    btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    btn.setStyleSheet(
+        "border: none; background: transparent; color: #a3a09a; "
+        "font-size: 11px; text-decoration: underline; padding: 0; text-align: left;"
+    )
+    return btn
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -60,6 +73,7 @@ class MainWindow(QMainWindow):
         self.resize(1440, 900)
 
         self.quote = seed_data.make_default_quote()
+        self._assign_new_quote_identity(self.quote)
         self.active: int | str = 0
         self.pending: dict[int, set[int]] = {}
         self.last_lookup_time: datetime | None = None
@@ -131,6 +145,11 @@ class MainWindow(QMainWindow):
         self.subtitle_label.setProperty("role", "muted")
         title_box.addWidget(self.title_label)
         title_box.addWidget(self.subtitle_label)
+
+        settings_btn = _link_button("Settings…")
+        settings_btn.clicked.connect(self.open_settings_dialog)
+        title_box.addWidget(settings_btn)
+
         layout.addLayout(title_box)
         layout.addStretch(1)
 
@@ -144,15 +163,9 @@ class MainWindow(QMainWindow):
         customer_box.addWidget(customer_label)
         customer_box.addWidget(self.customer_edit)
 
-        bill_to_btn = QPushButton("Bill-to details…")
-        bill_to_btn.setFlat(True)
-        bill_to_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        bill_to_btn.setStyleSheet(
-            "border: none; background: transparent; color: #a3a09a; "
-            "font-size: 11px; text-decoration: underline; padding: 0; text-align: left;"
-        )
-        bill_to_btn.clicked.connect(self.open_bill_to_dialog)
-        customer_box.addWidget(bill_to_btn)
+        quote_details_btn = _link_button("Quote details…")
+        quote_details_btn.clicked.connect(self.open_quote_details_dialog)
+        customer_box.addWidget(quote_details_btn)
         layout.addLayout(customer_box)
 
         total_box = QVBoxLayout()
@@ -223,6 +236,7 @@ class MainWindow(QMainWindow):
         self.parts_table.changed.connect(self._on_parts_changed)
         self.parts_table.lookup_requested.connect(self._on_line_lookup_requested)
         self.parts_table.lookup_bom_requested.connect(self.start_bom_lookup)
+        self.parts_table.paste_bom_requested.connect(self.open_paste_bom_dialog)
         self.parts_table.add_line_requested.connect(self.add_part_line)
         self.parts_table.remove_line_requested.connect(self.remove_part_line)
         layout.addWidget(self.parts_table)
@@ -287,7 +301,8 @@ class MainWindow(QMainWindow):
 
     def refresh_ui(self):
         n = len(self.quote.harnesses)
-        self.subtitle_label.setText(f"Q-2026-0418 · {n} harness{'es' if n != 1 else ''} · draft")
+        quote_number = self.quote.quote_number or "Draft"
+        self.subtitle_label.setText(f"{quote_number} · {n} harness{'es' if n != 1 else ''} · draft")
         self.customer_edit.setText(self.quote.customer)
 
         self.labor_widget.load(self.quote.labor)
@@ -442,16 +457,30 @@ class MainWindow(QMainWindow):
 
     def reset_quote(self):
         self.quote = seed_data.make_default_quote()
+        self._assign_new_quote_identity(self.quote)
         self.active = 0
         self.pending = {}
         self.last_lookup_time = None
         self.refresh_ui()
         QTimer.singleShot(0, self.start_price_all)
 
+    def _assign_new_quote_identity(self, quote: Quote) -> None:
+        """Assigns a fresh quote number and the default company snapshot.
+        Call exactly once per quote actually created (init, New Quote,
+        Reset) — never on Open (which restores the saved number/company
+        as-is) or on any refresh/render."""
+        quote.quote_number = quote_numbering.next_quote_number(settings.load_settings().initials)
+        default_company = company_profiles.get_default_company()
+        quote.company_name = default_company.name
+        quote.company_address_lines = list(default_company.address_lines)
+        quote.company_phone = default_company.phone
+        quote.company_email = default_company.email
+
     # ------------------------------------------------------------- File menu
 
     def new_quote(self):
         self.quote = seed_data.make_empty_quote()
+        self._assign_new_quote_identity(self.quote)
         self.active = 0
         self.pending = {}
         self.last_lookup_time = None
@@ -508,10 +537,28 @@ class MainWindow(QMainWindow):
         name = self.current_file_path.name if self.current_file_path else "Untitled"
         self.setWindowTitle(f"Harness quote — {name}")
 
-    def open_bill_to_dialog(self):
-        dialog = BillToDialog(self.quote, self)
-        if dialog.exec() == BillToDialog.DialogCode.Accepted:
+    def open_quote_details_dialog(self):
+        dialog = QuoteDetailsDialog(self.quote, self)
+        if dialog.exec() == QuoteDetailsDialog.DialogCode.Accepted:
             dialog.apply_to(self.quote)
+            self.refresh_ui()
+
+    def open_settings_dialog(self):
+        dialog = SettingsDialog(self)
+        if dialog.exec() == SettingsDialog.DialogCode.Accepted:
+            dialog.save()
+
+    def open_paste_bom_dialog(self):
+        dialog = PasteBomDialog(self)
+        if dialog.exec() != PasteBomDialog.DialogCode.Accepted:
+            return
+        harness = self.active_harness()
+        harness.lines = [
+            PartLine(part_number=line.part_number, qty=line.qty, category="Other")
+            for line in dialog.parsed_lines
+        ]
+        self.refresh_ui()
+        self._launch_lookups(self.active_harness_index(), list(range(len(harness.lines))))
 
     def print_quote(self):
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)

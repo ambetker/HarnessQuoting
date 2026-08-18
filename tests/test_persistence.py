@@ -51,8 +51,8 @@ def test_roundtrip_preserves_manual_override_and_resolved_state(tmp_path):
 
 
 def test_load_tolerates_missing_fields(tmp_path):
-    # Simulates an older save file missing a field added later
-    # (manual_override), which shouldn't raise.
+    # Simulates an older save file missing fields added later
+    # (manual_override, quote_number, company_*), which shouldn't raise.
     path = tmp_path / "old_quote.json"
     path.write_text(json.dumps({
         "customer": "Old Co",
@@ -68,3 +68,32 @@ def test_load_tolerates_missing_fields(tmp_path):
     assert loaded.customer == "Old Co"
     assert loaded.harnesses[0].lines[0].manual_override is False
     assert loaded.harnesses[0].order_qty == 1  # default fallback
+    assert loaded.quote_number == ""
+    assert loaded.company_name == ""
+    assert loaded.company_address_lines == []
+
+
+def test_roundtrip_preserves_quote_number_and_company_snapshot(tmp_path):
+    quote = Quote(
+        customer="Acme",
+        labor=LaborAssumptions(
+            labor_rate=62, efficiency=1, scrap_pct=2.5, margin_pct=32,
+            times={"cut": 25}, round_price_to=0.0,
+        ),
+        harnesses=[],
+        quote_number="Q-AB26081601",
+        company_name="Ambetker Wire & Cable",
+        company_address_lines=["1420 Harborview Industrial Drive", "Ashland, WI 54806"],
+        company_phone="715 682 4400",
+        company_email="sales@ambetker.com",
+    )
+    path = tmp_path / "quote.json"
+
+    persistence.save_quote(quote, path)
+    loaded = persistence.load_quote(path)
+
+    assert loaded.quote_number == "Q-AB26081601"
+    assert loaded.company_name == "Ambetker Wire & Cable"
+    assert loaded.company_address_lines == ["1420 Harborview Industrial Drive", "Ashland, WI 54806"]
+    assert loaded.company_phone == "715 682 4400"
+    assert loaded.company_email == "sales@ambetker.com"

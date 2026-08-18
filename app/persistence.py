@@ -16,6 +16,11 @@ def quote_to_dict(quote: Quote) -> dict:
         "customer": quote.customer,
         "customer_attn": quote.customer_attn,
         "customer_address": quote.customer_address,
+        "quote_number": quote.quote_number,
+        "company_name": quote.company_name,
+        "company_address_lines": list(quote.company_address_lines),
+        "company_phone": quote.company_phone,
+        "company_email": quote.company_email,
         "labor": {
             "labor_rate": quote.labor.labor_rate,
             "efficiency": quote.labor.efficiency,
@@ -87,6 +92,11 @@ def quote_from_dict(data: dict) -> Quote:
         harnesses=harnesses,
         customer_attn=data.get("customer_attn", ""),
         customer_address=data.get("customer_address", ""),
+        quote_number=data.get("quote_number", ""),
+        company_name=data.get("company_name", ""),
+        company_address_lines=list(data.get("company_address_lines", [])),
+        company_phone=data.get("company_phone", ""),
+        company_email=data.get("company_email", ""),
     )
 
 
