@@ -31,6 +31,16 @@ class HarnessNavWidget(QWidget):
         self.harness_combo = QComboBox()
         self.harness_combo.setMinimumWidth(240)
         self.harness_combo.currentIndexChanged.connect(self._on_combo_changed)
+        # One persistent model, reused across rebuild() calls. Creating a
+        # fresh QStandardItemModel every rebuild and swapping it in via
+        # setModel() (as this originally did) leaves nothing on the Python
+        # side holding a reference to the old one — the C++ object stays
+        # alive via Qt's parent/child ownership, but the Python wrapper can
+        # get garbage-collected while the combo box still expects to use
+        # it, which crashed the app on selection (same root cause as the
+        # earlier QRunnable worker segfault).
+        self._model = QStandardItemModel(self)
+        self.harness_combo.setModel(self._model)
         layout.addWidget(self.harness_combo)
 
         self.next_btn = QPushButton("▶")
@@ -61,25 +71,35 @@ class HarnessNavWidget(QWidget):
         """harness_entries: list of (name, sub_label e.g. '×25', flagged)
         per harness, in order. active is an int index, or 'sum'."""
         self._suppress_combo_signal = True
-        model = QStandardItemModel(self.harness_combo)
+        self._model.clear()
         for name, sub, flagged in harness_entries:
             prefix = "⚠ " if flagged else ""
             item = QStandardItem(f"{prefix}{name}   {sub}")
             if flagged:
                 item.setForeground(QColor(self.FLAG_COLOR))
-            model.appendRow(item)
-        self.harness_combo.setModel(model)
+            self._model.appendRow(item)
 
         n = len(harness_entries)
+        current_index = -1
         if isinstance(active, int) and n:
-            self.harness_combo.setCurrentIndex(max(0, min(active, n - 1)))
+            current_index = max(0, min(active, n - 1))
+            self.harness_combo.setCurrentIndex(current_index)
         self._suppress_combo_signal = False
+
+        # QComboBox only applies a model item's custom color to the open
+        # dropdown list, not the closed/current-selection display — without
+        # this, a flagged harness's warning color disappears the moment
+        # it's actually selected, which is backwards (that's exactly when
+        # you'd want the reminder still visible).
+        current_flagged = 0 <= current_index < n and harness_entries[current_index][2]
+        self.harness_combo.setStyleSheet(f"QComboBox {{ color: {self.FLAG_COLOR}; }}" if current_flagged else "")
 
         is_summary = active == "sum"
         self.summary_btn.setProperty("variant", "pill-active" if is_summary else "pill")
         self.summary_btn.setText(f"Summary   {summary_sub}")
         self.summary_btn.style().unpolish(self.summary_btn)
         self.summary_btn.style().polish(self.summary_btn)
+        self.summary_btn.update()  # unpolish/polish alone left a stray cursor-shaped repaint artifact
 
         self.prev_btn.setEnabled(isinstance(active, int) and active > 0)
         self.next_btn.setEnabled(isinstance(active, int) and active < n - 1)
