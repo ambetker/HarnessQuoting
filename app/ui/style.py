@@ -120,6 +120,21 @@ QLineEdit, QComboBox {{
 QLineEdit:focus, QComboBox:focus {{
     border: 2px solid {COLORS['accent']};
 }}
+/* Without explicit drop-down/down-arrow subcontrol rules, Qt's macOS
+   style miscalculates the popup-arrow region once any stylesheet
+   touches QComboBox at all, and can paint past the widget's own
+   right edge, overlapping whatever's laid out next to it. */
+QComboBox::drop-down {{
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 22px;
+    border: none;
+    background: transparent;
+}}
+QComboBox::down-arrow {{
+    width: 10px;
+    height: 10px;
+}}
 QLineEdit[emphasized="true"] {{
     border: 1px solid {COLORS['accent']};
     background: {COLORS['accent_tint']};
