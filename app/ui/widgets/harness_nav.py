@@ -30,6 +30,11 @@ class HarnessNavWidget(QWidget):
 
         self.harness_combo = QComboBox()
         self.harness_combo.setMinimumWidth(240)
+        # Without this, the combo has no signal to size itself to its
+        # current item's actual text — in a narrower (non-fullscreen)
+        # window it got compressed below what "harness name + ×qty" needs
+        # and silently truncated, with no ellipsis to even show it was cut.
+        self.harness_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.harness_combo.currentIndexChanged.connect(self._on_combo_changed)
         # One persistent model, reused across rebuild() calls. Creating a
         # fresh QStandardItemModel every rebuild and swapping it in via

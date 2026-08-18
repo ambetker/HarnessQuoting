@@ -205,7 +205,11 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
-        container.setMinimumWidth(620)
+        # 780, not the pill-tabs-era 620 — the redesigned nav bar (prev/
+        # combo/next/Summary/Paste harnesses/Add harness) genuinely needs
+        # more room than the old pill row did; measured sizeHint ~740 for
+        # a representative harness name, plus buffer.
+        container.setMinimumWidth(780)
 
         self.harness_nav = HarnessNavWidget()
         self.harness_nav.harness_selected.connect(self.select_harness)
